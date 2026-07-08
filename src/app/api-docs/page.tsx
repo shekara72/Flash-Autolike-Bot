@@ -282,9 +282,9 @@ fetch('/api/link/create', {
                         <tr className="border-b border-white/5 text-gray-300">
                           <td className="p-3 font-bold text-white">expiry</td>
                           <td className="p-3 font-mono leading-relaxed">
-                            "10m" (10 Min) • "30m" (30 Min) • "1h" (1 Hour) • "6h" (6 Hours) • "12h" (12 Hours) • "24h" (24 Hours) • "7d" (7 Days) • "30d" (30 Days) • "6mo" (6 Months) • "lifetime" (Never expire)
+                            &quot;10m&quot; (10 Min) • &quot;30m&quot; (30 Min) • &quot;1h&quot; (1 Hour) • &quot;6h&quot; (6 Hours) • &quot;12h&quot; (12 Hours) • &quot;24h&quot; (24 Hours) • &quot;7d&quot; (7 Days) • &quot;30d&quot; (30 Days) • &quot;6mo&quot; (6 Months) • &quot;lifetime&quot; (Never expire)
                           </td>
-                          <td className="p-3 font-mono">"24h"</td>
+                          <td className="p-3 font-mono">&quot;24h&quot;</td>
                         </tr>
                       </tbody>
                     </table>
