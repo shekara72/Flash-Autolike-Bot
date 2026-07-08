@@ -58,7 +58,7 @@ export default function LinkVerificationPage() {
 
         const link = json.link;
         setLinkData(link);
-        setTotalSteps(link.page_count || 1);
+        setTotalSteps(link.verification_pages_count || 3);
         setCountdown(link.countdown_seconds || 15);
 
         // Determine starting step
@@ -285,6 +285,37 @@ export default function LinkVerificationPage() {
                     </p>
                   </div>
 
+                  {/* Final Step Optional Telegram Join Box */}
+                  {isFinalStep && btnReady && (
+                    <div className="p-4 bg-sky-950/20 border border-sky-900/50 rounded-xl space-y-3 text-center my-4">
+                      <span className="text-[9px] font-bold text-sky-400 uppercase tracking-widest block">Optional step</span>
+                      <h4 className="text-xs font-bold text-white uppercase">Join Telegram Group for Updates</h4>
+                      <p className="text-[11px] text-gray-400 leading-relaxed max-w-sm mx-auto">
+                        Get instant access to private autolike configs, bypass keys, and daily redeem codes.
+                      </p>
+                      <div className="flex justify-center gap-2">
+                        <a
+                          href={siteSettings?.telegram_channel_link || "https://t.me/FL4SH_FF"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[10px] font-bold uppercase transition-all"
+                        >
+                          Join Group
+                        </a>
+                        <button
+                          onClick={() => {
+                            if (linkData?.original_url) {
+                              router.push(linkData.original_url);
+                            }
+                          }}
+                          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-[10px] font-bold uppercase transition-all"
+                        >
+                          Skip
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Ads Block (Simulated) */}
                   {linkData.ads_enabled && (
                     <div className="bg-[#0B0B0F] border border-white/5 rounded-xl p-4 text-center space-y-2 my-4">
@@ -308,7 +339,7 @@ export default function LinkVerificationPage() {
                     >
                       {isFinalStep ? (
                         <>
-                          <span>Go to Target Link</span>
+                          <span>Get Link</span>
                           <ExternalLink className="h-4.5 w-4.5" />
                         </>
                       ) : (

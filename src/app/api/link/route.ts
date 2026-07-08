@@ -88,17 +88,17 @@ export async function POST(req: NextRequest) {
     // 2. Increment click count in short_links table
     const { data: link } = await supabaseAdmin
       .from("short_links")
-      .select("click_count")
+      .select("clicks_count")
       .eq("id", linkId)
       .single();
 
-    const newCount = (link?.click_count || 0) + 1;
+    const newCount = (link?.clicks_count || 0) + 1;
     await supabaseAdmin
       .from("short_links")
-      .update({ click_count: newCount })
+      .update({ clicks_count: newCount })
       .eq("id", linkId);
 
-    return NextResponse.json({ success: true, click_count: newCount });
+    return NextResponse.json({ success: true, clicks_count: newCount });
   } catch (err: any) {
     console.error("Link analytics error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

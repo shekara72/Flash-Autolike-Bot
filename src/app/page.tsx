@@ -130,6 +130,7 @@ const FAQS = [
 export default function LandingPage() {
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
   const [gallery, setGallery] = useState<GalleryItem[]>(DEFAULT_GALLERY);
+  const [latestNews, setLatestNews] = useState<any[]>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   
   // Custom states
@@ -199,6 +200,17 @@ export default function LandingPage() {
           .order("created_at", { ascending: false });
         if (dbGallery && dbGallery.length > 0) {
           setGallery(dbGallery);
+        }
+
+        // Fetch 4 latest news
+        const { data: dbNews } = await supabase
+          .from("news")
+          .select("*")
+          .eq("status", "published")
+          .order("published_at", { ascending: false })
+          .limit(4);
+        if (dbNews) {
+          setLatestNews(dbNews);
         }
       } catch (e) {
         console.error("Error connecting to Supabase database:", e);
@@ -664,6 +676,54 @@ export default function LandingPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+
+      {/* NEWS SECTION */}
+      <section className="py-20 px-6 max-w-7xl mx-auto w-full" id="news">
+        <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
+          <h2 className="text-3xl font-black tracking-tight text-white uppercase">
+            Latest Gaming News & Updates
+          </h2>
+          <p className="text-gray-500 font-semibold text-xs uppercase tracking-widest">
+            Stay updated with esports, tech and Free Fire announcements
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {latestNews.length === 0 ? (
+            <div className="col-span-full text-center text-gray-500 py-10">
+              No published articles found.
+            </div>
+          ) : (
+            latestNews.map((item) => (
+              <div key={item.id} className="glass-card overflow-hidden group border border-white/5 hover:border-[#FF2E93]/20 bg-[#16161F] flex flex-col justify-between rounded-xl">
+                <div>
+                  <div className="relative h-44 w-full bg-[#0B0B0F] overflow-hidden">
+                    <img
+                      src={item.thumbnail_url || "https://images.unsplash.com/photo-1612287230202-1bf1d85d1bdf?auto=format&fit=crop&w=600&q=80"}
+                      alt={item.title}
+                      className="object-cover h-full w-full group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <span className="absolute top-3 left-3 bg-[#FF2E93] px-2 py-0.5 rounded text-[8px] font-bold text-white uppercase tracking-wider">
+                      {item.category ? item.category.replace("_", " ") : "Gaming"}
+                    </span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <span className="text-[9px] text-gray-500 font-mono">{new Date(item.published_at).toLocaleDateString()}</span>
+                    <h4 className="text-sm font-bold text-white line-clamp-2 group-hover:text-[#FF2E93] transition-colors uppercase">{item.title}</h4>
+                    <p className="text-xs text-gray-400 line-clamp-3 font-semibold leading-relaxed">{item.short_description}</p>
+                  </div>
+                </div>
+                <div className="p-4 pt-0">
+                  <Link href={`/news/${item.category || "gaming"}/${item.slug}`} className="text-[10px] font-bold text-[#FF2E93] uppercase hover:underline inline-flex items-center gap-1">
+                    Read Article →
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
 
       {/* FAQ SECTION */}
       <section className="bg-[#16161F] border-t border-[rgba(255,255,255,0.06)] py-20 px-6" id="faq">

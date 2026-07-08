@@ -45,6 +45,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState("admin");
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Active Tab: 10 Core Admin Modules
@@ -98,6 +99,11 @@ export default function AdminPage() {
   const [planDeliveryTime, setPlanDeliveryTime] = useState("4:00 AM IST");
   const [planDiscount, setPlanDiscount] = useState(0);
   const [planFeatures, setPlanFeatures] = useState("");
+  const [planSortOrder, setPlanSortOrder] = useState(0);
+  const [planPopularBadge, setPlanPopularBadge] = useState(false);
+  const [planRecommendedBadge, setPlanRecommendedBadge] = useState(false);
+  const [planImage, setPlanImage] = useState("");
+  const [planIsActive, setPlanIsActive] = useState(true);
 
   // News State Variables
   const [newsList, setNewsList] = useState<any[]>([]);
@@ -108,6 +114,7 @@ export default function AdminPage() {
   const [newsContent, setNewsContent] = useState("");
   const [newsAuthor, setNewsAuthor] = useState("Admin");
   const [newsStatus, setNewsStatus] = useState("published");
+  const [newsPublishedAt, setNewsPublishedAt] = useState("");
   const [newsTags, setNewsTags] = useState("");
   const [newsReadingTime, setNewsReadingTime] = useState(3);
   const [newsIsPinned, setNewsIsPinned] = useState(false);
@@ -129,8 +136,14 @@ export default function AdminPage() {
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
 
   // Coupon Form State
+  const [editingCouponId, setEditingCouponId] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(10);
+  const [couponDiscountType, setCouponDiscountType] = useState<"percentage" | "fixed">("percentage");
+  const [couponDiscountAmount, setCouponDiscountAmount] = useState(0);
+  const [couponExpiry, setCouponExpiry] = useState("");
+  const [couponUsageLimit, setCouponUsageLimit] = useState(0);
+  const [couponIsActive, setCouponIsActive] = useState(true);
 
   // Support Reply State
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
@@ -157,6 +170,13 @@ export default function AdminPage() {
   const [razorpayEnabled, setRazorpayEnabled] = useState(true);
   const [razorpayKeyId, setRazorpayKeyId] = useState("");
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
+  const [razorpayWebhookSecret, setRazorpayWebhookSecret] = useState("");
+  const [razorpayMode, setRazorpayMode] = useState("sandbox");
+  const [adsBannerEnabled, setAdsBannerEnabled] = useState(false);
+  const [adsInterstitialEnabled, setAdsInterstitialEnabled] = useState(false);
+  const [adsRewardedEnabled, setAdsRewardedEnabled] = useState(false);
+  const [adsVerificationEnabled, setAdsVerificationEnabled] = useState(false);
+  const [adsNewsEnabled, setAdsNewsEnabled] = useState(false);
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -223,7 +243,17 @@ export default function AdminPage() {
           const parsed = JSON.parse(localAdminSession);
           setIsAdmin(true);
           setUserRole(parsed.role || "super_admin");
+          setAdminUserId(parsed.id || null);
           await loadAdminData();
+          if (parsed.id) {
+            await supabase.from("activity_logs").insert({
+              user_id: parsed.id,
+              action: "Login",
+              details: { role: parsed.role, method: "local_storage" },
+              ip_address: "Admin Console",
+              created_at: new Date().toISOString()
+            });
+          }
           if (isMounted) setLoading(false);
           return;
         } catch (e) {}
@@ -251,7 +281,15 @@ export default function AdminPage() {
 
         setIsAdmin(true);
         setUserRole(profile.role);
+        setAdminUserId(profile.id);
         await loadAdminData();
+        await supabase.from("activity_logs").insert({
+          user_id: profile.id,
+          action: "Login",
+          details: { role: profile.role, method: "auth_session" },
+          ip_address: "Admin Console",
+          created_at: new Date().toISOString()
+        });
       } catch (err) {
         console.warn("Admin check notice:", err);
       } finally {
@@ -355,6 +393,15 @@ export default function AdminPage() {
         setUpiEnabled(setts.upi_enabled !== false);
         setQrCodeUrl(setts.qr_code_url || "");
         setRazorpayEnabled(setts.razorpay_enabled !== false);
+        setRazorpayKeyId(setts.razorpay_key_id || "");
+        setRazorpayKeySecret(setts.razorpay_key_secret || "");
+        setRazorpayWebhookSecret(setts.razorpay_webhook_secret || "");
+        setRazorpayMode(setts.razorpay_mode || "sandbox");
+        setAdsBannerEnabled(setts.ads_banner_enabled === true);
+        setAdsInterstitialEnabled(setts.ads_interstitial_enabled === true);
+        setAdsRewardedEnabled(setts.ads_rewarded_enabled === true);
+        setAdsVerificationEnabled(setts.ads_verification_enabled === true);
+        setAdsNewsEnabled(setts.ads_news_enabled === true);
         setMetaTitle(setts.meta_title || "");
         setMetaDescription(setts.meta_description || "");
         setMaintenanceMode(setts.maintenance_mode || false);
@@ -428,6 +475,21 @@ export default function AdminPage() {
 
     } catch (e) {
       console.error("Error loading admin console dataset:", e);
+    }
+  };
+
+  const logAdminActivity = async (actionName: string, detailsObj: any) => {
+    try {
+      const { error } = await supabase.from("activity_logs").insert({
+        user_id: adminUserId || "unknown_admin",
+        action: actionName,
+        details: detailsObj || {},
+        ip_address: "Admin Console",
+        created_at: new Date().toISOString()
+      });
+      if (error) throw error;
+    } catch (e) {
+      console.warn("Failed to write activity log:", e);
     }
   };
 
@@ -513,6 +575,7 @@ export default function AdminPage() {
   };
 
   const handleAdminLogout = async () => {
+    await logAdminActivity("Logout", { method: "manual" });
     if (typeof window !== "undefined") {
       localStorage.removeItem("flash_autolike_admin_session");
       document.cookie = "flash_admin_session=; path=/; max-age=0; SameSite=Lax";
@@ -525,6 +588,7 @@ export default function AdminPage() {
   const handleApprovePayment = async (order: any) => {
     try {
       await supabase.from("orders").update({ status: "approved", admin_notes: adminNote, verified_at: new Date().toISOString() }).eq("id", order.id);
+      await logAdminActivity("Payment Approved", { orderId: order.id, userId: order.user_id, amount: order.amount });
       
       const activatedAt = new Date();
       const expiresAt = new Date();
@@ -570,6 +634,7 @@ export default function AdminPage() {
     const reason = rejectionReason || "Invalid transaction screenshot or UTR reference.";
     try {
       await supabase.from("orders").update({ status: "rejected", rejection_reason: reason, admin_notes: adminNote, verified_at: new Date().toISOString() }).eq("id", order.id);
+      await logAdminActivity("Payment Rejected", { orderId: order.id, userId: order.user_id, amount: order.amount, reason });
       
       await supabase.from("notifications").insert({
         user_id: order.user_id,
@@ -642,7 +707,13 @@ export default function AdminPage() {
           delivery_time: planDeliveryTime,
           discount_percent: planDiscount,
           features: featArr,
+          sort_order: planSortOrder,
+          popular_badge: planPopularBadge,
+          recommended_badge: planRecommendedBadge,
+          plan_image: planImage,
+          is_active: planIsActive,
         }).eq("id", editingPlanId);
+        await logAdminActivity("Plan Updated", { planId: editingPlanId, name: planName });
         alert("Plan updated!");
       } else {
         await supabase.from("plans").insert({
@@ -653,35 +724,104 @@ export default function AdminPage() {
           delivery_time: planDeliveryTime,
           discount_percent: planDiscount,
           features: featArr,
-          is_active: true,
+          sort_order: planSortOrder,
+          popular_badge: planPopularBadge,
+          recommended_badge: planRecommendedBadge,
+          plan_image: planImage,
+          is_active: planIsActive,
         });
+        await logAdminActivity("Plan Created", { name: planName, price: planPrice });
         alert("New Plan created!");
       }
       setEditingPlanId(null);
       setPlanName("");
       setPlanPrice(299);
+      setPlanDuration(30);
+      setPlanDailyDelivery(220);
+      setPlanDeliveryTime("4:00 AM IST");
+      setPlanDiscount(0);
       setPlanFeatures("");
+      setPlanSortOrder(0);
+      setPlanPopularBadge(false);
+      setPlanRecommendedBadge(false);
+      setPlanImage("");
+      setPlanIsActive(true);
       await loadAdminData();
     } catch (err: any) {
       alert(err.message);
     }
   };
 
+  const handleDeletePlan = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this subscription plan?")) return;
+    try {
+      const { error } = await supabase.from("plans").delete().eq("id", id);
+      if (error) throw error;
+      await logAdminActivity("Plan Deleted", { planId: id });
+      alert("Plan deleted!");
+      await loadAdminData();
+    } catch (err: any) {
+      alert("Failed to delete plan: " + err.message);
+    }
+  };
+
   // Coupon CRUD Handlers
-  const handleCreateCoupon = async (e: React.FormEvent) => {
+  const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponCode) return;
     try {
-      await supabase.from("coupons").insert({
+      const payload = {
         code: couponCode.toUpperCase().trim(),
-        discount_percent: couponDiscount,
-        is_active: true,
-      });
-      alert("Coupon created successfully!");
+        discount_percent: couponDiscountType === "percentage" ? couponDiscount : 0,
+        discount_type: couponDiscountType,
+        discount_amount: couponDiscountType === "fixed" ? couponDiscountAmount : 0,
+        valid_until: couponExpiry ? new Date(couponExpiry).toISOString() : null,
+        usage_limit: Number(couponUsageLimit),
+        is_active: couponIsActive,
+      };
+
+      if (editingCouponId) {
+        await supabase
+          .from("coupons")
+          .update(payload)
+          .eq("id", editingCouponId);
+        await logAdminActivity("Coupon Updated", { couponId: editingCouponId, code: couponCode });
+        alert("Coupon updated successfully!");
+      } else {
+        await supabase
+          .from("coupons")
+          .insert({
+            ...payload,
+            created_at: new Date().toISOString(),
+          });
+        await logAdminActivity("Coupon Created", { code: couponCode });
+        alert("Coupon created successfully!");
+      }
+
+      setEditingCouponId(null);
       setCouponCode("");
+      setCouponDiscount(10);
+      setCouponDiscountType("percentage");
+      setCouponDiscountAmount(0);
+      setCouponExpiry("");
+      setCouponUsageLimit(0);
+      setCouponIsActive(true);
       await loadAdminData();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleDeleteCoupon = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this discount coupon?")) return;
+    try {
+      const { error } = await supabase.from("coupons").delete().eq("id", id);
+      if (error) throw error;
+      await logAdminActivity("Coupon Deleted", { couponId: id });
+      alert("Coupon deleted!");
+      await loadAdminData();
+    } catch (err: any) {
+      alert("Failed to delete coupon: " + err.message);
     }
   };
 
@@ -849,6 +989,7 @@ export default function AdminPage() {
         text_color: text,
         updated_at: new Date().toISOString(),
       }).eq("id", 1);
+      await logAdminActivity("Theme Changed", { presetName });
     } catch (e) {
       console.warn("Realtime theme update notice:", e);
     }
@@ -906,6 +1047,7 @@ export default function AdminPage() {
       is_breaking: newsIsBreaking,
       is_trending: newsIsTrending,
       video_url: newsVideoUrl,
+      published_at: newsPublishedAt ? new Date(newsPublishedAt).toISOString() : new Date().toISOString(),
     };
 
     try {
@@ -917,6 +1059,7 @@ export default function AdminPage() {
             updated_at: new Date().toISOString()
           })
           .eq("id", editingNewsId);
+        await logAdminActivity("News Updated", { newsId: editingNewsId, title: newsTitle });
         alert("News article updated successfully!");
       } else {
         await supabase
@@ -924,8 +1067,8 @@ export default function AdminPage() {
           .insert({
             ...payload,
             slug,
-            published_at: new Date().toISOString()
           });
+        await logAdminActivity("News Created", { title: newsTitle, category: newsCategory });
         alert("News article created successfully!");
       }
       setNewsTitle("");
@@ -939,6 +1082,7 @@ export default function AdminPage() {
       setNewsIsBreaking(false);
       setNewsIsTrending(false);
       setNewsVideoUrl("");
+      setNewsPublishedAt("");
       setEditingNewsId(null);
       await loadAdminData();
     } catch (err: any) {
@@ -955,6 +1099,7 @@ export default function AdminPage() {
     setNewsContent(item.content || "");
     setNewsAuthor(item.author_name || "Admin");
     setNewsStatus(item.status || "published");
+    setNewsPublishedAt(item.published_at ? new Date(item.published_at).toISOString().split("T")[0] : "");
     setNewsTags((item.tags || []).join(", "));
     setNewsReadingTime(item.reading_time || 3);
     setNewsIsPinned(item.is_pinned || false);
@@ -969,6 +1114,7 @@ export default function AdminPage() {
     if (!window.confirm("Are you sure you want to delete this article?")) return;
     try {
       await supabase.from("news").delete().eq("id", id);
+      await logAdminActivity("News Deleted", { newsId: id });
       alert("Article deleted!");
       await loadAdminData();
     } catch (err: any) {
@@ -1004,9 +1150,11 @@ export default function AdminPage() {
       expiry_preset: linkExpiry,
       expires_at: expiresAt ? expiresAt.toISOString() : null,
       countdown_seconds: Number(linkCountdown),
-      page_count: Number(linkPageCount),
-      ads_enabled: linkAdsEnabled,
-      tg_join_check: linkTgJoinCheck,
+      verification_pages_count: Number(linkPageCount),
+      ads_banner: linkAdsEnabled,
+      ads_reward: linkAdsEnabled,
+      ads_interstitial: linkAdsEnabled,
+      telegram_required: linkTgJoinCheck,
     };
 
     try {
@@ -1015,6 +1163,7 @@ export default function AdminPage() {
           .from("short_links")
           .update(payload)
           .eq("id", editingLinkId);
+        await logAdminActivity("Link Updated", { linkId: editingLinkId, originalUrl: linkOriginalUrl });
         alert("Short link updated successfully!");
       } else {
         await supabase
@@ -1024,6 +1173,7 @@ export default function AdminPage() {
             code,
             created_at: new Date().toISOString()
           });
+        await logAdminActivity("Link Created", { code, originalUrl: linkOriginalUrl });
         alert(`Short link created! Code: ${code}`);
       }
       setLinkOriginalUrl("");
@@ -1046,9 +1196,9 @@ export default function AdminPage() {
     setLinkTitle(item.title || "");
     setLinkExpiry(item.expiry_preset || "24h");
     setLinkCountdown(item.countdown_seconds || 15);
-    setLinkPageCount(item.page_count || 3);
-    setLinkAdsEnabled(item.ads_enabled !== false);
-    setLinkTgJoinCheck(item.tg_join_check === true);
+    setLinkPageCount(item.verification_pages_count || 3);
+    setLinkAdsEnabled(item.ads_banner !== false);
+    setLinkTgJoinCheck(item.telegram_required === true);
     setActiveTab("links");
   };
 
@@ -1056,6 +1206,7 @@ export default function AdminPage() {
     if (!window.confirm("Are you sure you want to delete this short link?")) return;
     try {
       await supabase.from("short_links").delete().eq("id", id);
+      await logAdminActivity("Link Deleted", { linkId: id });
       alert("Link deleted!");
       await loadAdminData();
     } catch (err: any) {
@@ -1080,6 +1231,13 @@ export default function AdminPage() {
         qr_code_url: qrCodeUrl,
         razorpay_key_id: razorpayKeyId,
         razorpay_key_secret: razorpayKeySecret,
+        razorpay_webhook_secret: razorpayWebhookSecret,
+        razorpay_mode: razorpayMode,
+        ads_banner_enabled: adsBannerEnabled,
+        ads_interstitial_enabled: adsInterstitialEnabled,
+        ads_rewarded_enabled: adsRewardedEnabled,
+        ads_verification_enabled: adsVerificationEnabled,
+        ads_news_enabled: adsNewsEnabled,
         meta_title: metaTitle,
         meta_description: metaDescription,
         maintenance_mode: maintenanceMode,
@@ -1108,6 +1266,7 @@ export default function AdminPage() {
         updated_at: new Date().toISOString(),
       }).eq("id", 1);
 
+      await logAdminActivity("Settings Changed", { site_name: siteName, maintenance_mode: maintenanceMode });
       alert("Website Settings updated!");
       await loadAdminData();
     } catch (err: any) {
@@ -1480,6 +1639,34 @@ export default function AdminPage() {
                     <input type="text" value={planDeliveryTime} onChange={(e) => setPlanDeliveryTime(e.target.value)} className="glass-input w-full rounded-lg py-2 px-3 text-white" />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-gray-400 mb-1">Discount %</label>
+                    <input type="number" value={planDiscount} onChange={(e) => setPlanDiscount(Number(e.target.value))} className="glass-input w-full rounded-lg py-2 px-3 text-white" />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-400 mb-1">Sort Order</label>
+                    <input type="number" value={planSortOrder} onChange={(e) => setPlanSortOrder(Number(e.target.value))} className="glass-input w-full rounded-lg py-2 px-3 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-400 mb-1">Plan Image URL</label>
+                  <input type="text" value={planImage} onChange={(e) => setPlanImage(e.target.value)} className="glass-input w-full rounded-lg py-2 px-3 text-white" placeholder="https://..." />
+                </div>
+                <div className="flex gap-4 items-center py-1">
+                  <label className="flex items-center gap-2 text-gray-300 font-semibold cursor-pointer">
+                    <input type="checkbox" checked={planPopularBadge} onChange={(e) => setPlanPopularBadge(e.target.checked)} className="rounded accent-[#FF2E93]" />
+                    Popular Badge
+                  </label>
+                  <label className="flex items-center gap-2 text-gray-300 font-semibold cursor-pointer">
+                    <input type="checkbox" checked={planRecommendedBadge} onChange={(e) => setPlanRecommendedBadge(e.target.checked)} className="rounded accent-[#FF2E93]" />
+                    Recommended
+                  </label>
+                  <label className="flex items-center gap-2 text-gray-300 font-semibold cursor-pointer">
+                    <input type="checkbox" checked={planIsActive} onChange={(e) => setPlanIsActive(e.target.checked)} className="rounded accent-[#FF2E93]" />
+                    Is Active
+                  </label>
+                </div>
                 <div>
                   <label className="block font-bold text-gray-400 mb-1">Features (Comma separated)</label>
                   <textarea rows={2} value={planFeatures} onChange={(e) => setPlanFeatures(e.target.value)} className="glass-input w-full rounded-lg py-2 px-3 text-white resize-none" placeholder="30 Days Active, Total Likes: 6600, Daily Load: 220" />
@@ -1496,11 +1683,31 @@ export default function AdminPage() {
                   {plansList.map((p) => (
                     <div key={p.id} className="p-3 bg-[#0B0B0F] rounded-xl border border-[rgba(255,255,255,0.04)] flex items-center justify-between text-xs">
                       <div>
-                        <p className="font-bold text-white">{p.name}</p>
-                        <span className="text-[10px] text-gray-500 font-mono">₹{p.price} / {p.duration_days} Days ({p.daily_delivery || 220} Daily)</span>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-white">{p.name}</p>
+                          {p.popular_badge && <span className="bg-[#FF2E93]/10 text-[#FF2E93] border border-[#FF2E93]/20 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider">Popular</span>}
+                          {p.recommended_badge && <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider">Recommended</span>}
+                          {!p.is_active && <span className="bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider">Disabled</span>}
+                        </div>
+                        <span className="text-[10px] text-gray-500 font-mono">₹{p.price} / {p.duration_days} Days ({p.daily_delivery || 220} Daily) - Sort: {p.sort_order || 0}</span>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => { setEditingPlanId(p.id); setPlanName(p.name); setPlanPrice(p.price); setPlanDuration(p.duration_days); setPlanFeatures((p.features || []).join(", ")); }} className="px-2.5 py-1 bg-white/5 rounded text-[10px] font-bold">Edit</button>
+                        <button onClick={() => { 
+                          setEditingPlanId(p.id); 
+                          setPlanName(p.name); 
+                          setPlanPrice(p.price); 
+                          setPlanDuration(p.duration_days); 
+                          setPlanDailyDelivery(p.daily_delivery || 220);
+                          setPlanDeliveryTime(p.delivery_time || "4:00 AM IST");
+                          setPlanDiscount(p.discount_percent || 0);
+                          setPlanFeatures((p.features || []).join(", ")); 
+                          setPlanSortOrder(p.sort_order || 0);
+                          setPlanPopularBadge(p.popular_badge || false);
+                          setPlanRecommendedBadge(p.recommended_badge || false);
+                          setPlanImage(p.plan_image || "");
+                          setPlanIsActive(p.is_active !== false);
+                        }} className="px-2.5 py-1 bg-white/5 rounded text-[10px] font-bold">Edit</button>
+                        <button onClick={() => handleDeletePlan(p.id)} className="px-2.5 py-1 bg-red-950 text-red-400 border border-red-900/50 rounded text-[10px] font-bold">Delete</button>
                       </div>
                     </div>
                   ))}
@@ -1509,12 +1716,115 @@ export default function AdminPage() {
 
               {/* Coupon Management Form */}
               <div className="glass-card p-6 bg-[#16161F] border-[rgba(255,255,255,0.06)] space-y-4">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider border-b border-[rgba(255,255,255,0.06)] pb-2">Create Discount Coupon</h3>
-                <form onSubmit={handleCreateCoupon} className="flex gap-3 text-xs">
-                  <input type="text" required placeholder="Coupon Code (e.g. FLASH20)" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} className="glass-input rounded-xl py-2 px-3 text-white flex-1" />
-                  <input type="number" required placeholder="Discount %" value={couponDiscount} onChange={(e) => setCouponDiscount(Number(e.target.value))} className="glass-input rounded-xl py-2 px-3 text-white w-28" />
-                  <button type="submit" className="pink-btn px-4 py-2 rounded-xl font-bold uppercase">Create</button>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider border-b border-[rgba(255,255,255,0.06)] pb-2">
+                  {editingCouponId ? "Edit Discount Coupon" : "Create Discount Coupon"}
+                </h3>
+                <form onSubmit={handleSaveCoupon} className="space-y-3 text-xs">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-gray-400 mb-1">Coupon Code</label>
+                      <input type="text" required placeholder="e.g. FLASH50" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} className="glass-input rounded-xl py-2 px-3 text-white w-full" />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-gray-400 mb-1">Discount Type</label>
+                      <select value={couponDiscountType} onChange={(e) => setCouponDiscountType(e.target.value as any)} className="glass-input rounded-xl py-2 px-3 text-white w-full bg-[#0B0B0F]">
+                        <option value="percentage">Percentage (%)</option>
+                        <option value="fixed">Fixed Amount (₹)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {couponDiscountType === "percentage" ? (
+                      <div>
+                        <label className="block font-bold text-gray-400 mb-1">Discount Percentage (%)</label>
+                        <input type="number" required placeholder="Discount %" value={couponDiscount} onChange={(e) => setCouponDiscount(Number(e.target.value))} className="glass-input rounded-xl py-2 px-3 text-white w-full" />
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block font-bold text-gray-400 mb-1">Fixed Discount Amount (₹)</label>
+                        <input type="number" required placeholder="Discount Amount" value={couponDiscountAmount} onChange={(e) => setCouponDiscountAmount(Number(e.target.value))} className="glass-input rounded-xl py-2 px-3 text-white w-full" />
+                      </div>
+                    )}
+                    <div>
+                      <label className="block font-bold text-gray-400 mb-1">Usage Limit (0 = Unlimited)</label>
+                      <input type="number" required placeholder="Usage Limit" value={couponUsageLimit} onChange={(e) => setCouponUsageLimit(Number(e.target.value))} className="glass-input rounded-xl py-2 px-3 text-white w-full" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-gray-400 mb-1">Expiry Date (Optional)</label>
+                      <input type="date" value={couponExpiry} onChange={(e) => setCouponExpiry(e.target.value)} className="glass-input rounded-xl py-2 px-3 text-white w-full" />
+                    </div>
+                    <div className="flex items-center gap-2 pt-5">
+                      <label className="flex items-center gap-2 text-gray-300 font-semibold cursor-pointer">
+                        <input type="checkbox" checked={couponIsActive} onChange={(e) => setCouponIsActive(e.target.checked)} className="rounded accent-[#FF2E93]" />
+                        Active Status
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {editingCouponId && (
+                      <button type="button" onClick={() => {
+                        setEditingCouponId(null);
+                        setCouponCode("");
+                        setCouponDiscount(10);
+                        setCouponDiscountType("percentage");
+                        setCouponDiscountAmount(0);
+                        setCouponExpiry("");
+                        setCouponUsageLimit(0);
+                        setCouponIsActive(true);
+                      }} className="px-4 py-2 bg-white/5 rounded-xl font-bold uppercase w-1/3">Cancel</button>
+                    )}
+                    <button type="submit" className="pink-btn px-4 py-2 rounded-xl font-bold uppercase flex-1">
+                      {editingCouponId ? "Update Coupon" : "Create Coupon"}
+                    </button>
+                  </div>
                 </form>
+
+                {/* Coupons Library List */}
+                <div className="border-t border-white/5 pt-4 space-y-2">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Coupons Library</span>
+                  {couponsList.length === 0 ? (
+                    <p className="text-[10px] text-gray-500 italic py-2">No coupons created yet.</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {couponsList.map((c) => (
+                        <div key={c.id} className="p-2.5 bg-[#0B0B0F] rounded-xl border border-white/5 flex items-center justify-between text-[11px]">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-white uppercase">{c.code}</span>
+                              <span className="text-[9px] bg-pink-950 text-pink-400 px-1.5 py-0.5 rounded font-mono font-bold">
+                                {c.discount_type === "fixed" ? `₹${c.discount_amount} OFF` : `${c.discount_percent}% OFF`}
+                              </span>
+                              {!c.is_active && <span className="text-[8px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold">Inactive</span>}
+                            </div>
+                            <div className="text-[10px] text-gray-500 font-mono mt-0.5 space-x-2">
+                              <span>Limit: {c.usage_limit || "Unlimited"}</span>
+                              <span>Used: {c.usage_count || 0} times</span>
+                              {c.valid_until && <span>Expires: {new Date(c.valid_until).toLocaleDateString()}</span>}
+                            </div>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button onClick={() => {
+                              setEditingCouponId(c.id);
+                              setCouponCode(c.code);
+                              setCouponDiscountType(c.discount_type || "percentage");
+                              setCouponDiscount(c.discount_percent || 10);
+                              setCouponDiscountAmount(c.discount_amount || 0);
+                              setCouponExpiry(c.valid_until ? new Date(c.valid_until).toISOString().split("T")[0] : "");
+                              setCouponUsageLimit(c.usage_limit || 0);
+                              setCouponIsActive(c.is_active !== false);
+                            }} className="px-2 py-0.5 bg-white/5 rounded text-[10px] font-bold">Edit</button>
+                            <button onClick={() => handleDeleteCoupon(c.id)} className="px-2 py-0.5 bg-red-950 text-red-400 border border-red-900/50 rounded text-[10px] font-bold">Delete</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1820,7 +2130,7 @@ export default function AdminPage() {
                {/* Category 4: Payment Gateway Configuration */}
                <div className="p-4 bg-[#0B0B0F] rounded-xl border border-white/5 space-y-3">
                  <span className="text-[10px] font-bold text-[#FF2E93] uppercase block">4. Payment Gateway Settings & Controls</span>
-                 <div className="grid grid-cols-2 gap-3">
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                    <div>
                      <label className="block text-gray-400 mb-1">UPI ID</label>
                      <input type="text" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white font-mono" />
@@ -1836,6 +2146,17 @@ export default function AdminPage() {
                    <div>
                      <label className="block text-gray-400 mb-1">Razorpay Key Secret</label>
                      <input type="password" value={razorpayKeySecret} onChange={(e) => setRazorpayKeySecret(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white font-mono" />
+                   </div>
+                   <div>
+                     <label className="block text-gray-400 mb-1">Razorpay Webhook Secret</label>
+                     <input type="password" value={razorpayWebhookSecret} onChange={(e) => setRazorpayWebhookSecret(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white font-mono" />
+                   </div>
+                   <div>
+                     <label className="block text-gray-400 mb-1">Razorpay Operation Mode</label>
+                     <select value={razorpayMode} onChange={(e) => setRazorpayMode(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white bg-[#0B0B0F]">
+                       <option value="sandbox">Sandbox / Testing</option>
+                       <option value="production">Production / Live</option>
+                     </select>
                    </div>
                  </div>
                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
@@ -1869,6 +2190,33 @@ export default function AdminPage() {
                    <div>
                      <label className="block text-gray-400 mb-1">Telegram Channel Link (Join Required)</label>
                      <input type="url" value={telegramChannelLink} onChange={(e) => setTelegramChannelLink(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white" placeholder="https://t.me/..." />
+                   </div>
+                 </div>
+               </div>
+
+               {/* Category 4.6: Google Ads Config */}
+               <div className="p-4 bg-[#0B0B0F] rounded-xl border border-white/5 space-y-3">
+                 <span className="text-[10px] font-bold text-[#FF2E93] uppercase block">4.6. Google Ads Controls</span>
+                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                   <div className="flex items-center justify-between p-2.5 bg-[#16161F] rounded-xl border border-white/5">
+                     <span className="text-xs font-bold text-white">Banner Ads</span>
+                     <input type="checkbox" checked={adsBannerEnabled} onChange={(e) => setAdsBannerEnabled(e.target.checked)} className="h-4.5 w-4.5 bg-[#0B0B0F] text-[#FF2E93] focus:ring-[#FF2E93] cursor-pointer" />
+                   </div>
+                   <div className="flex items-center justify-between p-2.5 bg-[#16161F] rounded-xl border border-white/5">
+                     <span className="text-xs font-bold text-white">Interstitial Ads</span>
+                     <input type="checkbox" checked={adsInterstitialEnabled} onChange={(e) => setAdsInterstitialEnabled(e.target.checked)} className="h-4.5 w-4.5 bg-[#0B0B0F] text-[#FF2E93] focus:ring-[#FF2E93] cursor-pointer" />
+                   </div>
+                   <div className="flex items-center justify-between p-2.5 bg-[#16161F] rounded-xl border border-white/5">
+                     <span className="text-xs font-bold text-white">Rewarded Ads</span>
+                     <input type="checkbox" checked={adsRewardedEnabled} onChange={(e) => setAdsRewardedEnabled(e.target.checked)} className="h-4.5 w-4.5 bg-[#0B0B0F] text-[#FF2E93] focus:ring-[#FF2E93] cursor-pointer" />
+                   </div>
+                   <div className="flex items-center justify-between p-2.5 bg-[#16161F] rounded-xl border border-white/5">
+                     <span className="text-xs font-bold text-white">Verification Ads</span>
+                     <input type="checkbox" checked={adsVerificationEnabled} onChange={(e) => setAdsVerificationEnabled(e.target.checked)} className="h-4.5 w-4.5 bg-[#0B0B0F] text-[#FF2E93] focus:ring-[#FF2E93] cursor-pointer" />
+                   </div>
+                   <div className="flex items-center justify-between p-2.5 bg-[#16161F] rounded-xl border border-white/5">
+                     <span className="text-xs font-bold text-white">News Page Ads</span>
+                     <input type="checkbox" checked={adsNewsEnabled} onChange={(e) => setAdsNewsEnabled(e.target.checked)} className="h-4.5 w-4.5 bg-[#0B0B0F] text-[#FF2E93] focus:ring-[#FF2E93] cursor-pointer" />
                    </div>
                  </div>
                </div>
@@ -1985,15 +2333,19 @@ export default function AdminPage() {
                   <div>
                     <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Category</label>
                     <select value={newsCategory} onChange={(e) => setNewsCategory(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs bg-[#0B0B0F]">
-                      <option value="gaming">Gaming News</option>
-                      <option value="technology">Tech News</option>
-                      <option value="ai">AI News</option>
-                      <option value="weather">Weather</option>
-                      <option value="share_market">Share Market</option>
+                      <option value="free_fire">Free Fire</option>
+                      <option value="gaming">Gaming</option>
+                      <option value="esports">Esports</option>
+                      <option value="technology">Technology</option>
+                      <option value="ai">AI</option>
+                      <option value="android">Android</option>
+                      <option value="india">India</option>
+                      <option value="world">World</option>
+                      <option value="stock_market">Stock Market</option>
                       <option value="crypto">Crypto</option>
-                      <option value="sports">Sports</option>
                       <option value="entertainment">Entertainment</option>
-                      <option value="announcement">Announcement</option>
+                      <option value="sports">Sports</option>
+                      <option value="weather">Weather</option>
                     </select>
                   </div>
                 </div>
@@ -2009,7 +2361,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Author Name</label>
                     <input type="text" value={newsAuthor} onChange={(e) => setNewsAuthor(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs" />
@@ -2021,6 +2373,10 @@ export default function AdminPage() {
                   <div>
                     <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Reading Time (minutes)</label>
                     <input type="number" value={newsReadingTime} onChange={(e) => setNewsReadingTime(Number(e.target.value))} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs" min={1} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Publish Date</label>
+                    <input type="date" value={newsPublishedAt} onChange={(e) => setNewsPublishedAt(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs" />
                   </div>
                 </div>
 
@@ -2036,8 +2392,11 @@ export default function AdminPage() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
                   <div className="flex items-center justify-between p-2.5 bg-[#0B0B0F] rounded-xl border border-white/5">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase">Status Published</span>
-                    <input type="checkbox" checked={newsStatus === "published"} onChange={(e) => setNewsStatus(e.target.checked ? "published" : "draft")} className="h-4.5 w-4.5 bg-[#0B0B0F] text-[#FF2E93] focus:ring-[#FF2E93] cursor-pointer" />
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Status</span>
+                    <select value={newsStatus} onChange={(e) => setNewsStatus(e.target.value)} className="glass-input py-0.5 px-2 text-[10px] text-white bg-[#0B0B0F] border-none font-bold uppercase cursor-pointer">
+                      <option value="published">Published</option>
+                      <option value="draft">Draft</option>
+                    </select>
                   </div>
                   <div className="flex items-center justify-between p-2.5 bg-[#0B0B0F] rounded-xl border border-white/5">
                     <span className="text-[10px] font-bold text-gray-400 uppercase">Pin Article</span>
@@ -2135,14 +2494,10 @@ export default function AdminPage() {
               </h3>
               
               <form onSubmit={handleSaveLink} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Target Original URL (Destination)</label>
                     <input type="url" value={linkOriginalUrl} onChange={(e) => setLinkOriginalUrl(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs font-mono" placeholder="https://google.com/myfile.zip" required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Link Title (For Reference)</label>
-                    <input type="text" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs" placeholder="e.g. Free Fire Mod File" />
                   </div>
                 </div>
 
@@ -2153,10 +2508,12 @@ export default function AdminPage() {
                       <option value="10m">10 Minutes</option>
                       <option value="30m">30 Minutes</option>
                       <option value="1h">1 Hour</option>
+                      <option value="6h">6 Hours</option>
                       <option value="12h">12 Hours</option>
                       <option value="24h">24 Hours</option>
                       <option value="7d">7 Days</option>
                       <option value="30d">30 Days</option>
+                      <option value="6m">6 Months</option>
                       <option value="lifetime">Lifetime (No Expiry)</option>
                     </select>
                   </div>
@@ -2165,8 +2522,8 @@ export default function AdminPage() {
                     <input type="number" value={linkCountdown} onChange={(e) => setLinkCountdown(Number(e.target.value))} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs" min={5} max={60} />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Verification Steps (1–10 pages)</label>
-                    <input type="number" value={linkPageCount} onChange={(e) => setLinkPageCount(Number(e.target.value))} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs" min={1} max={10} />
+                    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Verification Steps (3–10 pages)</label>
+                    <input type="number" value={linkPageCount} onChange={(e) => setLinkPageCount(Number(e.target.value))} className="glass-input w-full rounded-xl py-2 px-3 text-white text-xs" min={3} max={10} />
                   </div>
                 </div>
 
@@ -2217,12 +2574,13 @@ export default function AdminPage() {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-white/5 text-gray-500 font-bold uppercase">
-                      <th className="py-2.5">Shortened Path</th>
-                      <th className="py-2.5">Target Destination</th>
-                      <th className="py-2.5 text-center">Countdown</th>
-                      <th className="py-2.5 text-center">Steps</th>
-                      <th className="py-2.5 text-center">Clicks</th>
-                      <th className="py-2.5">Expires At</th>
+                      <th className="py-2.5">Original URL</th>
+                      <th className="py-2.5">Short URL</th>
+                      <th className="py-2.5">Created Date</th>
+                      <th className="py-2.5">Expiry</th>
+                      <th className="py-2.5 text-center">Views</th>
+                      <th className="py-2.5 text-center">Status</th>
+                      <th className="py-2.5 text-center">Verification Completed</th>
                       <th className="py-2.5 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -2240,8 +2598,8 @@ export default function AdminPage() {
                             <span className="text-[10px] text-gray-500 font-mono truncate block">{item.original_url}</span>
                           </td>
                           <td className="py-3 text-center font-mono">{item.countdown_seconds}s</td>
-                          <td className="py-3 text-center font-mono">{item.page_count} Pages</td>
-                          <td className="py-3 text-center font-mono text-yellow-400 font-bold">{item.click_count || 0}</td>
+                          <td className="py-3 text-center font-mono">{item.verification_pages_count} Pages</td>
+                          <td className="py-3 text-center font-mono text-yellow-400 font-bold">{item.clicks_count || 0}</td>
                           <td className="py-3">
                             <span className="text-[10px] font-mono block">
                               {item.expires_at ? new Date(item.expires_at).toLocaleString() : "Never"}

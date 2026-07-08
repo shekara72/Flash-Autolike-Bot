@@ -27,6 +27,40 @@ export function getCurrentUserUid(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(STORAGE_KEY) || null;
 }
+/**
+ * Helper to perform robust fetches with timeout, automatic retry, and mixed-content protocol upgrade.
+ */
+async function robustFetch(url: string, options: RequestInit = {}, retries = 2, timeoutMs = 12000): Promise<Response> {
+  let targetUrl = url;
+  if (typeof window !== "undefined" && window.location.protocol === "https:" && targetUrl.startsWith("http://")) {
+    targetUrl = targetUrl.replace("http://", "https://");
+  }
+
+  for (let i = 0; i <= retries; i++) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(targetUrl, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (err: any) {
+      clearTimeout(id);
+      const isLast = i === retries;
+      if (err.name === "AbortError") {
+        console.warn(`Request timed out for ${targetUrl} (Attempt ${i + 1}/${retries + 1})`);
+        if (isLast) throw new Error("Request timed out. Server is temporarily unavailable.");
+      } else {
+        console.warn(`Network fetch error for ${targetUrl} (Attempt ${i + 1}/${retries + 1}):`, err);
+        if (isLast) throw new Error("Unable to connect to the server. Please check your internet connection.");
+      }
+    }
+  }
+  throw new Error("Unable to complete request");
+}
 
 /**
  * Authenticates user directly using Free Fire UID:
@@ -48,12 +82,12 @@ export async function loginWithUid(rawUid: string): Promise<{ success: boolean; 
 
   // 1. Query Player Info API
   try {
-    const res = await fetch(`/api/player-info?uid=${encodeURIComponent(uid)}`);
+    const res = await robustFetch(`/api/player-info?uid=${encodeURIComponent(uid)}`);
     if (res.ok) {
       const resJson = await res.json();
-      if (resJson && (resJson.basicInfo || resJson.error)) {
-        if (resJson.error === "Player not found." || resJson.error) {
-          return { success: false, message: "Player Not Found. Please enter a valid registered Free Fire UID." };
+      if (resJson) {
+        if (resJson.error === "Player not found." || resJson.error === "Player Not Found") {
+          return { success: false, message: "Player Not Found. Please check the UID and try again." };
         }
         playerRawData = resJson;
         if (resJson.basicInfo?.nickname) {
@@ -61,15 +95,21 @@ export async function loginWithUid(rawUid: string): Promise<{ success: boolean; 
           region = resJson.basicInfo.region || "IND";
         }
       }
+    } else {
+      throw new Error(`Proxy status ${res.status}`);
     }
-  } catch (err) {
-    console.warn("API route query failed, trying direct endpoint:", err);
+  } catch (err: any) {
+    console.warn("API proxy query failed, trying direct endpoint:", err.message);
+  }
+
+  // Fallback: If nickname is still empty, fetch direct URL
+  if (!nickname) {
     try {
-      const directRes = await fetch(`https://info.killersharmabot.online/player-info?uid=${encodeURIComponent(uid)}`);
+      const directRes = await robustFetch(`https://info.killersharmabot.online/player-info?uid=${encodeURIComponent(uid)}`);
       if (directRes.ok) {
         const resJson = await directRes.json();
-        if (resJson.error === "Player not found." || resJson.error) {
-          return { success: false, message: "Player Not Found. Please enter a valid registered Free Fire UID." };
+        if (resJson.error === "Player not found." || resJson.error === "Player Not Found") {
+          return { success: false, message: "Player Not Found. Please check the UID and try again." };
         }
         playerRawData = resJson;
         if (resJson.basicInfo?.nickname) {
@@ -77,12 +117,18 @@ export async function loginWithUid(rawUid: string): Promise<{ success: boolean; 
           region = resJson.basicInfo.region || "IND";
         }
       }
-    } catch (e) {}
+    } catch (e: any) {
+      console.error("Direct fetch fallback failed:", e.message);
+      return { 
+        success: false, 
+        message: e.message || "Unable to connect to the server. Please check your internet connection." 
+      };
+    }
   }
 
   // If no nickname, it means player is not found
   if (!nickname) {
-    return { success: false, message: "Player Not Found. Please enter a valid registered Free Fire UID." };
+    return { success: false, message: "Player Not Found. Please check the UID and try again." };
   }
 
   // 2. Upsert Profile record in Supabase `profiles` table

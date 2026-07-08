@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Bell, Menu, X, LogOut, LayoutDashboard, Shield } from "lucide-react";
+import { Bell, Menu, X, LogOut, LayoutDashboard, Shield, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Notification {
@@ -24,6 +24,16 @@ export default function Header() {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [globalSearchInput, setGlobalSearchInput] = useState("");
+
+  const handleGlobalSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (globalSearchInput.trim()) {
+      router.push(`/search?q=${encodeURIComponent(globalSearchInput.trim())}`);
+      setGlobalSearchInput("");
+      setIsMobileMenuOpen(false);
+    }
+  };
 
   useEffect(() => {
     // Check session
@@ -126,6 +136,18 @@ export default function Header() {
             FLASH AUTOLIKE<span className="text-[#FF2E93] text-2xl font-black">.</span>
           </span>
         </Link>
+
+        {/* Desktop Global Search Bar */}
+        <form onSubmit={handleGlobalSearch} className="hidden lg:flex items-center relative w-72 mx-4">
+          <input
+            type="text"
+            placeholder="Search UID, News, Order ID, UTR..."
+            value={globalSearchInput}
+            onChange={(e) => setGlobalSearchInput(e.target.value)}
+            className="w-full bg-[#0B0B0F]/90 border border-white/5 rounded-xl px-3 py-1.5 pl-8 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#FF2E93]/80 focus:ring-1 focus:ring-[#FF2E93]/20 transition-all"
+          />
+          <Search className="absolute left-2.5 h-3.5 w-3.5 text-gray-500" />
+        </form>
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8 font-semibold text-gray-400">
@@ -249,6 +271,17 @@ export default function Header() {
             exit={{ opacity: 0, height: 0 }}
             className="absolute top-[68px] left-0 w-full bg-[#0B0B0F]/95 border-b border-[rgba(255,255,255,0.06)] px-6 py-6 space-y-4 flex flex-col md:hidden z-40 backdrop-blur-md"
           >
+            {/* Mobile Global Search Bar */}
+            <form onSubmit={handleGlobalSearch} className="flex items-center relative w-full mb-2">
+              <input
+                type="text"
+                placeholder="Search UID, News, Order ID, UTR..."
+                value={globalSearchInput}
+                onChange={(e) => setGlobalSearchInput(e.target.value)}
+                className="w-full bg-[#16161F] border border-white/5 rounded-xl px-3 py-2 pl-9 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF2E93] transition-all"
+              />
+              <Search className="absolute left-3 h-4 w-4 text-gray-500" />
+            </form>
             <Link
               href="/#features"
               onClick={() => setIsMobileMenuOpen(false)}
